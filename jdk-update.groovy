@@ -37,18 +37,39 @@ if (args.length == 1) {
     specificMajorVersion = args[0].toInteger()
     def pathArg = args[1]
 
-    // Check if path is absolute or relative
+    // Normalize the path (resolve .., ., etc.)
     def pathFile = new File(pathArg)
-    if (pathFile.isAbsolute()) {
-        specificJdkPath = pathFile.absolutePath
-    } else {
-        specificJdkPath = new File(jdksDir, pathArg).absolutePath
+    try {
+        if (pathFile.isAbsolute()) {
+            specificJdkPath = pathFile.canonicalPath
+        } else {
+            specificJdkPath = new File(jdksDir, pathArg).canonicalPath
+        }
+    } catch (IOException e) {
+        System.err.println("Error: Invalid path '${pathArg}': ${e.message}")
+        System.exit(1)
     }
 
     // Validate the specified path exists
-    if (!new File(specificJdkPath).exists()) {
-        System.err.println("Error: Specified JDK directory does not exist: ${specificJdkPath}")
+    def targetDir = new File(specificJdkPath)
+    if (!targetDir.exists()) {
+        System.err.println("Error: JDK directory does not exist: ${specificJdkPath}")
         System.exit(1)
+    }
+
+    if (!targetDir.isDirectory()) {
+        System.err.println("Error: Path is not a directory: ${specificJdkPath}")
+        System.exit(1)
+    }
+
+    // Validate that non-absolute path is under jdksDir
+    // This prevents symlinks pointing to unexpected locations
+    if (!pathFile.isAbsolute()) {
+        def canonicalJdksDir = jdksDir.canonicalPath
+        if (!specificJdkPath.startsWith(canonicalJdksDir)) {
+            System.err.println("Warning: Specified path is outside .jdks directory: ${specificJdkPath}")
+            System.err.println("This may cause issues with JDK version management.")
+        }
     }
 }
 

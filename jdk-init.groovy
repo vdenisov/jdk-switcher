@@ -49,28 +49,81 @@ if (!jdksDir.exists() || !jdksDir.isDirectory()) {
 }
 println("  ✓ JDKs directory found: ${jdksDir.absolutePath}\n")
 
+// Helper function to read environment variable with fallback
+def getEnvVar(String varName) {
+    // Try PowerShell first
+    def psCmd = "powershell -ExecutionPolicy Bypass -Command \"[Environment]::GetEnvironmentVariable('${varName}', 'Machine')\""
+    def psProcess = psCmd.execute()
+    psProcess.waitFor()
+
+    if (psProcess.exitValue() == 0) {
+        return psProcess.text.trim()
+    }
+
+    // Fallback to reg query
+    def regCmd = "reg query \"HKLM\\System\\CurrentControlSet\\Control\\Session Manager\\Environment\" /v ${varName}"
+    def regProcess = regCmd.execute()
+    regProcess.waitFor()
+
+    if (regProcess.exitValue() == 0) {
+        def output = regProcess.text
+        def matcher = output =~ /REG_(?:SZ|EXPAND_SZ)\s+(.+)/
+        if (matcher) {
+            return matcher[0][1].trim()
+        }
+    }
+
+    return null
+}
+
+// Helper function to set environment variable with fallback
+def setEnvVar(String varName, String value) {
+    // Try PowerShell first
+    def psCmd = "powershell -ExecutionPolicy Bypass -Command \"[Environment]::SetEnvironmentVariable('${varName}', '${value}', 'Machine')\""
+    def psProcess = psCmd.execute()
+    psProcess.waitFor()
+
+    if (psProcess.exitValue() == 0) {
+        return true
+    }
+
+    println("  PowerShell failed, trying registry method...")
+
+    // Fallback to reg add
+    def regCmd = "reg add \"HKLM\\System\\CurrentControlSet\\Control\\Session Manager\\Environment\" /v ${varName} /t REG_EXPAND_SZ /d \"${value}\" /f"
+    def regProcess = regCmd.execute()
+    regProcess.waitFor()
+
+    if (regProcess.exitValue() == 0) {
+        return true
+    }
+
+    System.err.println("  ERROR: Both PowerShell and registry methods failed")
+    System.err.println("  PowerShell error: ${psProcess.err.text}")
+    System.err.println("  Registry error: ${regProcess.err.text}")
+    return false
+}
+
 // Step 2: Check and update PATH environment variable
 println("Step 2: Checking PATH environment variable...")
 def jdkBinPath = "${SYMLINK_PATH}\\bin"
 
 // Read current system PATH
-def getPathCmd = 'powershell -Command "[Environment]::GetEnvironmentVariable(\'Path\', \'Machine\')"'
-def getPathProcess = getPathCmd.execute()
-getPathProcess.waitFor()
-def currentPath = getPathProcess.text.trim()
+def currentPath = getEnvVar('Path')
+if (currentPath == null) {
+    System.err.println("  ERROR: Unable to read PATH environment variable")
+    System.exit(1)
+}
 
 if (currentPath.toLowerCase().contains(jdkBinPath.toLowerCase())) {
     println("  ✓ JDK bin path already in PATH: ${jdkBinPath}\n")
 } else {
     println("  Adding JDK bin path to PATH: ${jdkBinPath}")
     def newPath = "${jdkBinPath};${currentPath}"
-    def setPathCmd = "powershell -Command \"[Environment]::SetEnvironmentVariable('Path', '${newPath}', 'Machine')\""
-    def setPathProcess = setPathCmd.execute()
-    setPathProcess.waitFor()
 
-    if (setPathProcess.exitValue() != 0) {
+    if (!setEnvVar('Path', newPath)) {
         System.err.println("  ERROR: Failed to update PATH")
-        System.err.println(setPathProcess.err.text)
+        System.err.println("  Please ensure you have administrator privileges and PowerShell/Registry access is not blocked")
         System.exit(1)
     }
     println("  ✓ PATH updated successfully\n")
@@ -78,10 +131,7 @@ if (currentPath.toLowerCase().contains(jdkBinPath.toLowerCase())) {
 
 // Step 3: Check and set JAVA_HOME environment variable
 println("Step 3: Checking JAVA_HOME environment variable...")
-def getJavaHomeCmd = 'powershell -Command "[Environment]::GetEnvironmentVariable(\'JAVA_HOME\', \'Machine\')"'
-def getJavaHomeProcess = getJavaHomeCmd.execute()
-getJavaHomeProcess.waitFor()
-def currentJavaHome = getJavaHomeProcess.text.trim()
+def currentJavaHome = getEnvVar('JAVA_HOME')
 
 if (currentJavaHome && currentJavaHome.equals(SYMLINK_PATH)) {
     println("  ✓ JAVA_HOME already set correctly: ${SYMLINK_PATH}\n")
@@ -93,13 +143,9 @@ if (currentJavaHome && currentJavaHome.equals(SYMLINK_PATH)) {
         println("  Setting JAVA_HOME to: ${SYMLINK_PATH}")
     }
 
-    def setJavaHomeCmd = "powershell -Command \"[Environment]::SetEnvironmentVariable('JAVA_HOME', '${SYMLINK_PATH}', 'Machine')\""
-    def setJavaHomeProcess = setJavaHomeCmd.execute()
-    setJavaHomeProcess.waitFor()
-
-    if (setJavaHomeProcess.exitValue() != 0) {
+    if (!setEnvVar('JAVA_HOME', SYMLINK_PATH)) {
         System.err.println("  ERROR: Failed to set JAVA_HOME")
-        System.err.println(setJavaHomeProcess.err.text)
+        System.err.println("  Please ensure you have administrator privileges and PowerShell/Registry access is not blocked")
         System.exit(1)
     }
     println("  ✓ JAVA_HOME set successfully\n")

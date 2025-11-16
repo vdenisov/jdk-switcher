@@ -88,6 +88,12 @@ def removeSymlink(String symlinkPath) {
         return false
     }
 
+    // Show success output if available
+    def output = removeProcess.text.trim()
+    if (output) {
+        println(output)
+    }
+
     return true
 }
 
@@ -106,6 +112,12 @@ def createSymlink(String symlinkPath, String targetPath) {
         System.err.println("Error creating symlink ${symlinkPath}:")
         System.err.println(mklinkProcess.err.text)
         return false
+    }
+
+    // Show success output from mklink (e.g., "symbolic link created for...")
+    def output = mklinkProcess.text.trim()
+    if (output) {
+        println("  ${output}")
     }
 
     return true

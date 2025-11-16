@@ -102,16 +102,16 @@ This script will:
 
 The `config.properties` file contains two settings:
 
-| Property | Description | Default Value |
-|----------|-------------|---------------|
-| `jdks.base.dir` | Directory where JDKs are installed (relative to `%USERPROFILE%`) | `.jdks` |
-| `jdk.symlink.path` | Absolute path where the active JDK symlink will be created | `C:\jdk` |
+| Property            | Description | Default Value |
+|---------------------|-------------|---------------|
+| `jdks.base.dir`     | Directory where JDKs are installed (relative to `%USERPROFILE%`) | `.jdks` |
+| `jdks.symlink.path` | Absolute path where the active JDK symlink will be created | `C:\jdk` |
 
 **Example:**
 
 ```properties
 jdks.base.dir=.jdks
-jdk.symlink.path=C:\\jdk
+jdks.symlink.path=C:\\jdk
 ```
 
 ---
