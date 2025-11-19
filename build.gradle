@@ -1,0 +1,60 @@
+plugins {
+    id 'groovy'
+}
+
+group = 'com.github.vdenisov'
+version = '0.1.0'
+description = 'Fast JDK version switching for Windows via directory symlinks'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.apache.groovy:groovy-all:4.0.23'
+
+    testImplementation 'org.spockframework:spock-core:2.3-groovy-4.0'
+    testImplementation 'org.apache.groovy:groovy-all:4.0.23'
+}
+
+sourceSets {
+    main {
+        groovy {
+            srcDirs = ['.']
+            exclude 'src/**'
+            exclude 'build/**'
+            exclude '.gradle/**'
+            exclude '.idea/**'
+            exclude '.git/**'
+        }
+    }
+    test {
+        groovy {
+            srcDirs = ['src/test/groovy']
+        }
+        resources {
+            srcDirs = ['src/test/resources']
+        }
+    }
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+        showStandardStreams = false
+    }
+}
+
+// Task to display test results summary
+tasks.register('testReport') {
+    dependsOn test
+    doLast {
+        println "\n=== Test Results ==="
+        def testResults = test.testResultsDir
+        if (testResults.exists()) {
+            println "Test report available at: ${test.reports.html.entryPoint}"
+        }
+    }
+}
