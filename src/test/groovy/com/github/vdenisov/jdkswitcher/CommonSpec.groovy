@@ -49,6 +49,34 @@ class CommonSpec extends Specification {
         ['21.0.7', '21.0.7.6', '21.0.9']    || '21.0.9'
     }
 
+    def "escapePowerShellLiteral turns #value into #expected"() {
+        expect:
+        common.escapePowerShellLiteral(value) == expected
+
+        where:
+        value                        || expected
+        'C:\\jdk'                    || 'C:\\jdk'
+        "C:\\Users\\O'Brien\\.jdks"  || "C:\\Users\\O''Brien\\.jdks"
+        "''"                         || "''''"
+        ''                           || ''
+        null                         || ''
+    }
+
+    def "the escaped value survives a round trip through PowerShell"() {
+        given: "a path with the character that would otherwise close the literal early"
+        def value = "C:\\Users\\O'Brien\\.jdks;C:\\jdk\\bin"
+
+        when: "it is embedded in a single-quoted literal the way jdk-init does"
+        def script = "Write-Output '${common.escapePowerShellLiteral(value)}'"
+        def process = ['powershell', '-NoProfile', '-Command', script].execute()
+        def stdout = new StringWriter()
+        process.waitForProcessOutput(stdout, new StringWriter())
+
+        then:
+        process.exitValue() == 0
+        stdout.toString().trim() == value
+    }
+
     def "discoverJdks groups installations by major version"() {
         given:
         ['temurin-11.0.32.1', 'temurin-17.0.16', 'corretto-21.0.12.1', 'temurin-25.0.4', 'temurin-25.0.4.1']

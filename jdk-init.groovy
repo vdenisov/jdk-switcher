@@ -77,7 +77,8 @@ def getEnvVar(common, String varName) {
 // Helper function to set environment variable with fallback
 def setEnvVar(common, String varName, String value) {
     // Try PowerShell first
-    def psCmd = "powershell -ExecutionPolicy Bypass -Command \"[Environment]::SetEnvironmentVariable('${varName}', '${value}', 'Machine')\""
+    def psValue = common.escapePowerShellLiteral(value)
+    def psCmd = "powershell -ExecutionPolicy Bypass -Command \"[Environment]::SetEnvironmentVariable('${varName}', '${psValue}', 'Machine')\""
     def psResult = common.runCommand(psCmd)
 
     if (psResult.exitCode == 0) {
