@@ -8,6 +8,25 @@ import java.nio.file.LinkOption
  */
 
 /**
+ * Run a command and collect its output
+ *
+ * Both streams are drained while the process runs. A bare waitFor deadlocks whenever the child
+ * writes more than the pipe buffer holds (roughly 4 KB on Windows), which the machine PATH alone
+ * can exceed, so every command in these scripts goes through here.
+ * @param command The command line to run
+ *
+ * @return map of exitCode, out and err
+ */
+def runCommand(String command) {
+    def process = command.execute()
+    def out = new StringWriter()
+    def err = new StringWriter()
+    process.waitForProcessOutput(out, err)
+
+    return [exitCode: process.exitValue(), out: out.toString(), err: err.toString()]
+}
+
+/**
  * Check whether a directory entry exists, without following symlinks
  * Unlike File#exists, this returns true for a dangling symlink, i.e. one whose
  * target has been renamed or removed
@@ -44,15 +63,12 @@ def canCreateSymlinks() {
         testTarget.mkdirs()
 
         // Try to create a symlink
-        def mklinkCmd = "cmd /c mklink /D \"${testSymlink.absolutePath}\" \"${testTarget.absolutePath}\""
-        def mklinkProcess = mklinkCmd.execute()
-        mklinkProcess.waitFor()
-
-        def success = mklinkProcess.exitValue() == 0
+        def success = runCommand("cmd /c mklink /D \"${testSymlink.absolutePath}\" \"${testTarget.absolutePath}\"")
+            .exitCode == 0
 
         // Clean up
         if (testSymlink.exists()) {
-            "cmd /c rmdir \"${testSymlink.absolutePath}\"".execute().waitFor()
+            runCommand("cmd /c rmdir \"${testSymlink.absolutePath}\"")
         }
         if (testTarget.exists()) {
             testTarget.delete()
@@ -70,10 +86,7 @@ def canCreateSymlinks() {
  */
 def isAdmin() {
     try {
-        def cmd = 'net session'
-        def process = cmd.execute()
-        process.waitFor()
-        return process.exitValue() == 0
+        return runCommand('net session').exitCode == 0
     } catch (Exception e) {
         return false
     }
@@ -102,18 +115,16 @@ def removeSymlink(String symlinkPath) {
         return true
     }
 
-    def removeCmd = "cmd /c rmdir \"${symlinkPath}\""
-    def removeProcess = removeCmd.execute()
-    removeProcess.waitFor()
+    def result = runCommand("cmd /c rmdir \"${symlinkPath}\"")
 
-    if (removeProcess.exitValue() != 0) {
+    if (result.exitCode != 0) {
         System.err.println("Error removing symlink ${symlinkPath}:")
-        System.err.println(removeProcess.err.text)
+        System.err.println(result.err)
         return false
     }
 
     // Show success output if available
-    def output = removeProcess.text.trim()
+    def output = result.out.trim()
     if (output) {
         println(output)
     }
@@ -128,18 +139,16 @@ def removeSymlink(String symlinkPath) {
  * @return true if creation was successful, false on error
  */
 def createSymlink(String symlinkPath, String targetPath) {
-    def mklinkCmd = "cmd /c mklink /D \"${symlinkPath}\" \"${targetPath}\""
-    def mklinkProcess = mklinkCmd.execute()
-    mklinkProcess.waitFor()
+    def result = runCommand("cmd /c mklink /D \"${symlinkPath}\" \"${targetPath}\"")
 
-    if (mklinkProcess.exitValue() != 0) {
+    if (result.exitCode != 0) {
         System.err.println("Error creating symlink ${symlinkPath}:")
-        System.err.println(mklinkProcess.err.text)
+        System.err.println(result.err)
         return false
     }
 
     // Show success output from mklink (e.g., "symbolic link created for...")
-    def output = mklinkProcess.text.trim()
+    def output = result.out.trim()
     if (output) {
         println("  ${output}")
     }

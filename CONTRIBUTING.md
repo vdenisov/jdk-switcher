@@ -28,7 +28,7 @@ Tests are split by the privileges they need, not by what they cover.
 
 **Tier 2** (`JdkUpdateSpec`, `JdksSpec`) runs `jdk-update` and `jdks` as real processes against a throwaway home directory. Both paths the scripts touch are injectable - `.jdks` is resolved against `user.home`, and the active symlink comes from `config.properties` - so `ScriptSandbox` copies the scripts into a temp directory with a rewritten config and runs them with `-Duser.home=<temp>`. A script that goes completely wrong can only damage a temp folder, never your real `.jdks`.
 
-**Tier 3** (`JdkInitSpec`) covers `jdk-init`, which writes machine-scope `PATH` and `JAVA_HOME`. There is no way to inject those, so it is guarded with `@Requires({ env.CI })` and runs only on the GitHub Actions runner, which is a disposable elevated VM.
+**Tier 3** (`JdkInitSpec`) covers `jdk-init`, which writes machine-scope `PATH` and `JAVA_HOME`. There is no way to inject those, so it is guarded on `GITHUB_ACTIONS` *and* `RUNNER_ENVIRONMENT == 'github-hosted'`, and runs only there. A plain `CI` check would not do: self-hosted runners, Jenkins agents and anyone who has exported `CI=1` all set it, and none of them are disposable. The prior `JAVA_HOME` and `PATH` are snapshotted and restored afterwards regardless, since the values jdk-init writes point into a temp directory that is about to be deleted.
 
 Important: that guard is the only thing between a local test run and a rewritten system `PATH`. Do *not* remove it to "just check something locally". If you need to work on `jdk-init`, push a branch and let CI run it, or use a throwaway VM.
 

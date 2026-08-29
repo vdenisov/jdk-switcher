@@ -45,13 +45,11 @@ There are no other hardcoded paths in `jdk-update.groovy` or `jdks.groovy`, so t
 
 The real `~/.jdks` and `C:\jdk` are never referenced, so even a script that goes completely wrong can only damage a temp folder. This is the tier that covers the dangling symlink bug, where `File#exists` follows the link and reports `false` for a stale one, so the removal was skipped and `mklink` then failed on the leftover directory entry.
 
-Tier 2 needs the privilege to create symlinks. Developer Mode is enough for this and does not touch Docker in any way; it is off on my machine at the moment (`AllowDevelopmentWithoutDevLicense` is not set under `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock`). On GitHub Actions it comes for free with the elevated runner.
-
-TODO: confirm that `mklink /D` succeeds unelevated once Developer Mode is enabled. Documentation says the flag for unprivileged creation is honoured, but I want to see it rather than assume it. If it turns out not to work, tier 2 becomes an elevated-shell-only thing locally and mostly a CI concern.
+Tier 2 needs the privilege to create symlinks. Developer Mode is enough for this and does not touch Docker in any way; it is enabled here, and `mklink /D` does succeed unelevated, which the whole tier 2 suite running locally confirms. On GitHub Actions it comes for free with the elevated runner. Note that reading `AllowDevelopmentWithoutDevLicense` under `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock` needs elevation itself and returns nothing without it, so an empty read there proves nothing either way.
 
 ## Tier 3. `jdk-init` is only ever run on a machine we are willing to lose.
 
-`jdk-init.groovy` writes machine-scope `PATH` and `JAVA_HOME` through PowerShell with a `reg add` fallback. There is no injection point for that, and inventing one purely for tests would mean changing production behaviour to suit the test suite, which I would rather not do. So this tier runs on the GitHub Actions runner and nowhere else, gated with `@Requires({ env.CI })`.
+`jdk-init.groovy` writes machine-scope `PATH` and `JAVA_HOME` through PowerShell with a `reg add` fallback. There is no injection point for that, and inventing one purely for tests would mean changing production behaviour to suit the test suite, which I would rather not do. So this tier runs on the GitHub Actions runner and nowhere else, gated on `GITHUB_ACTIONS` together with `RUNNER_ENVIRONMENT == 'github-hosted'` - `CI` alone is set by self-hosted runners and by anyone who exports it, and those hosts are not disposable. The spec snapshots the machine `JAVA_HOME` and `PATH` and puts them back afterwards, because the values it writes point into a temp directory that is deleted when the spec ends.
 
 Important: that guard is the only thing between a local test run and a rewritten system `PATH`. It goes on the spec class, not on individual features, and it is not optional.
 
@@ -97,7 +95,7 @@ The scripts are also run against Groovy 3.0.25, 4.0.33 and 5.0.8, selected with 
 | 4 | Tier 2 specs: `JdkUpdateSpec`, `JdksSpec` | M | 3 |
 | 5 | Delete container scaffolding and Testcontainers dependencies | S | 4 |
 | 6 | GitHub Actions workflow on `windows-latest` | S | 2, 4 |
-| 7 | Tier 3 `JdkInitSpec`, gated on `env.CI` | M | 3, 6 |
+| 7 | Tier 3 `JdkInitSpec`, gated on a GitHub-hosted runner | M | 3, 6 |
 | 8 | `CONTRIBUTING.md`: Developer Mode prerequisite, how to run each tier, why there is no Docker | S | 6 |
 
 Cases for ticket 2:

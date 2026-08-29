@@ -21,7 +21,8 @@ java {
 // Groovy the scripts are run with, override with -PgroovyVersion to test another line.
 // The group id changed at Groovy 4, so 3.0.x still lives under org.codehaus.groovy.
 def scriptGroovyVersion = findProperty('groovyVersion') ?: '5.0.8'
-def scriptGroovyGroup = scriptGroovyVersion.startsWith('3.') ? 'org.codehaus.groovy' : 'org.apache.groovy'
+def scriptGroovyMajor = scriptGroovyVersion.tokenize('.').first().toInteger()
+def scriptGroovyGroup = scriptGroovyMajor < 4 ? 'org.codehaus.groovy' : 'org.apache.groovy'
 
 configurations {
     // Kept separate from the Groovy that Spock needs, so the two can move independently

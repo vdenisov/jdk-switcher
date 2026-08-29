@@ -88,13 +88,25 @@ class ScriptSandbox {
      * @param name Variable name
      *
      * @return the raw value, empty when the variable is not set
+     *
+     * @throws IllegalStateException when the read itself fails, so that a broken probe cannot be
+     *         mistaken for jdk-init having written nothing
      */
     static String machineEnv(String name) {
-        def process = ['powershell', '-NoProfile', '-Command',
-                       "[Environment]::GetEnvironmentVariable('${name}', 'Machine')"].execute()
-        def stdout = new StringWriter()
-        process.waitForProcessOutput(stdout, new StringWriter())
-        return stdout.toString().trim()
+        def result = powershell("[Environment]::GetEnvironmentVariable('${name}', 'Machine')")
+        return result.out.trim()
+    }
+
+    /**
+     * Write a machine-scope environment variable, used to restore what jdk-init overwrote
+     * @param name Variable name
+     * @param value New value, a null or empty value removes the variable
+     *
+     * @throws IllegalStateException when the write fails
+     */
+    static void setMachineEnv(String name, String value) {
+        def literal = value ? "'${value.replace("'", "''")}'" : '$null'
+        powershell("[Environment]::SetEnvironmentVariable('${name}', ${literal}, 'Machine')")
     }
 
     /**
@@ -115,6 +127,20 @@ class ScriptSandbox {
      */
     static boolean symlinksAvailable() {
         return new GroovyShell().evaluate(new File('common.groovy')).canCreateSymlinks()
+    }
+
+    private static Map powershell(String script) {
+        def process = ['powershell', '-NoProfile', '-Command', script].execute()
+        def stdout = new StringWriter()
+        def stderr = new StringWriter()
+        process.waitForProcessOutput(stdout, stderr)
+
+        if (process.exitValue() != 0) {
+            throw new IllegalStateException(
+                "PowerShell failed (exit ${process.exitValue()}) for [${script}]: ${stderr.toString().trim()}")
+        }
+
+        return [out: stdout.toString(), err: stderr.toString()]
     }
 
     private static String javaOf(String jdkHome) {
