@@ -1,6 +1,8 @@
-# Testing plan for JDK Switcher
+# How JDK Switcher is tested
 
-The previous version of this plan was built around Windows Server Core containers driven by Testcontainers. That approach is abandoned. Running Windows containers requires switching Docker Desktop to Windows virtualization, which shuts down the Linux engine and takes everything else I run locally with it; the price is not worth what the tests give back. This document describes what replaces it.
+This records why the test suite is shaped the way it is. It was written as a plan and has been carried out in full; the design rationale is what is still worth keeping, so the ticket breakdown that used to live at the end has been removed.
+
+The first version of the plan was built around Windows Server Core containers driven by Testcontainers. That was abandoned. Running Windows containers requires switching Docker Desktop to Windows virtualization, which shuts down the Linux engine and takes everything else running locally with it; the price is not worth what the tests give back.
 
 ## The decision
 
@@ -84,36 +86,3 @@ The scripts are also run against Groovy 3.0.25, 4.0.33 and 5.0.8, selected with 
 | Windows Sandbox for tier 3 locally | deferred | disposable and shares the hypervisor with WSL2, so no Docker mode switch is needed; but there is no exec API and no exit codes, so results have to be scraped from a mapped folder | CI turns out to be too slow a feedback loop for `jdk-init` work |
 | Self-hosted Windows runner with containers | rejected | the same Docker mode problem, except now on a machine I have to maintain myself | never, most likely |
 | Stubbing the privilege and env-var calls in the scripts | rejected | changes production code to suit the tests; tier 2 sandboxing gets the same coverage without touching behaviour | - |
-
-## Tickets
-
-| # | Ticket | Size | Depends on |
-| --- | --- | --- | --- |
-| 1 | Move version parsing, `compareVersions` and `findLatestJdk` from `jdk-update.groovy` into `common.groovy` | S | - |
-| 2 | Tier 1 specs: version ordering and directory scanning | S | 1 |
-| 3 | Sandbox harness: temp home, config rewrite, mock JDK tree, script runner returning exit code and streams | M | - |
-| 4 | Tier 2 specs: `JdkUpdateSpec`, `JdksSpec` | M | 3 |
-| 5 | Delete container scaffolding and Testcontainers dependencies | S | 4 |
-| 6 | GitHub Actions workflow on `windows-latest` | S | 2, 4 |
-| 7 | Tier 3 `JdkInitSpec`, gated on a GitHub-hosted runner | M | 3, 6 |
-| 8 | `CONTRIBUTING.md`: Developer Mode prerequisite, how to run each tier, why there is no Docker | S | 6 |
-
-Cases for ticket 2:
-
-* `25.0.4` against `25.0.4.1`, in both argument orders;
-* `25.0.4` against `25.0.10` (the string sort gets this one wrong);
-* `25.0.1000` against `25.1.0` (the old arithmetic got this one wrong);
-* versions with different component counts, `21` against `21.0.1`;
-* `21` against `21.0.0` treated as equal;
-* `<vendor>-<version>` parsing for `temurin-25.0.4.1`, `corretto-21.0.12.1`, and a vendor name that itself contains a hyphen;
-* directories that do not match the pattern at all are ignored.
-
-Cases for ticket 4:
-
-* a stale symlink whose target was renamed is removed and recreated (the `.1` scenario);
-* `jdk-update` exits non-zero and names the failed versions when a symlink cannot be written;
-* `jdk-update <major>` and `jdk-update <major> <path>`, with both relative and absolute paths;
-* a path outside `.jdks` produces the warning but still succeeds;
-* an empty `.jdks` directory exits cleanly with a message;
-* `jdks latest` picks the highest major version, and fails loudly rather than downgrading when that version's symlink is dangling;
-* `jdks <version>` for a version that has no symlink.

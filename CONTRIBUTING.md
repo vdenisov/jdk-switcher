@@ -6,7 +6,7 @@ The scripts themselves need nothing but a Groovy installation on Windows. Everyt
 
 * **JDK 17 or newer** to run Gradle. The build itself is pinned to a JDK 21 toolchain, so the version you launch Gradle with does not affect the result; Gradle auto-detects JDKs installed under `~/.jdks`, which is where IntelliJ puts them.
 * **Windows Developer Mode**, or an elevated shell. Creating directory symlinks is what most of the suite does, and without the privilege those tests are skipped rather than failed. Settings > System > For developers > Developer Mode.
-* **No Docker**, and no Groovy installation. An earlier version of the plan used Windows containers; see `PLAN.md` for why that was dropped.
+* **No Docker**, and no Groovy installation. An earlier version of the test suite used Windows containers; see [docs/testing-design.md](docs/testing-design.md) for why that was dropped.
 
 ## Running the tests
 
