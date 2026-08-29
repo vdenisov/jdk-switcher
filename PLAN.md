@@ -57,7 +57,7 @@ Important: that guard is the only thing between a local test run and a rewritten
 
 In exchange, tier 3 is the only tier that tests the whole thing as a user sees it: the admin check, `PATH` assembly, `JAVA_HOME`, the `.bat` wrappers, and `java -version` actually resolving through `C:\jdk\bin`.
 
-The workflow is `windows-latest`, `actions/setup-java` for the JDK, Groovy on `PATH`, then `./gradlew test`. Groovy could be avoided for tiers 1 and 2 by invoking `java -cp <groovy-all resolved by Gradle> groovy.ui.GroovyMain`, but the `.bat` wrappers call `groovy` directly, so tier 3 needs a real installation on `PATH` anyway; `choco install groovy` is the simplest way to get one.
+The workflow is `windows-latest`, `actions/setup-java` for the JDKs, then `./gradlew test`. No Groovy installation is needed anywhere: the scripts are invoked as `java -cp <scriptRuntime configuration> groovy.ui.GroovyMain`, which resolves `scriptDir`, `args` and `user.home` exactly like the `groovy` launcher does. `jdk-init` is the one script that shells out to `groovy` by name for its two child scripts, and `ScriptSandbox` handles that by putting a `groovy.bat` shim on the child's `PATH` - the shim carries the sandboxed `user.home`, which a real installation would not, so the children cannot escape into the real `.jdks` either.
 
 ## What gets removed
 
@@ -72,6 +72,10 @@ The container scaffolding goes, along with the pre-built image apparatus in sect
 That is roughly 590 lines of scaffolding. All three helpers turned out to be replaceable by a single `ScriptSandbox` rather than reworkable - once the scripts run as an ordinary local process, creating a mock JDK is `mkdirs()` and asserting on a symlink is `Files.readSymbolicLink`, so there is nothing left for a helper class to wrap. Logback went with them, since nothing on the test path logs through SLF4J any more.
 
 Note that the mock JDKs `ScriptSandbox` builds are empty directories. The fake `bin\java.bat` responding to `--version` is only needed once tier 3 runs `java -version` through the active symlink, and gets added with that ticket.
+
+## The Groovy version axis
+
+The scripts are also run against Groovy 3.0.25, 4.0.33 and 5.0.8, selected with `-PgroovyVersion`. This is not because the code is version-sensitive - it uses `=~`, `tokenize`, `withDefault` and `String#execute`, all of which have been stable since Groovy 1.x, and all twelve Groovy-by-JDK combinations pass unchanged. The axis exists to catch the one failure that actually happened: Groovy 4.0.23 cannot run on JDK 25 at all, failing with `Unsupported class file major version 69`, because its bundled ASM predates that class file format. Newer patch releases on the same line (4.0.33) are fine. That is a class of breakage which arrives with a *new JDK*, not with a change to this repository, so a periodic matrix is the only thing that would notice it.
 
 ## Alternatives considered
 
