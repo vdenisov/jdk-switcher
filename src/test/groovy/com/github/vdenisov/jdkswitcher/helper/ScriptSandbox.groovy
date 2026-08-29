@@ -36,14 +36,21 @@ class ScriptSandbox {
     }
 
     /**
-     * Create an empty JDK installation directory named the way vendors name them
+     * Create a JDK installation directory named the way vendors name them
      * @param name Directory name in <vendor>-<version> form
+     * @param version Version a mock bin\java.bat should report, no bin directory is created when null
      *
      * @return the created directory
      */
-    File createJdk(String name) {
+    File createJdk(String name, String version = null) {
         def jdk = new File(jdksDir, name)
         jdk.mkdirs()
+
+        if (version) {
+            new File(jdk, 'bin').mkdirs()
+            new File(jdk, 'bin/java.bat').text = "@echo off\r\necho openjdk version \"${version}\"\r\n"
+        }
+
         return jdk
     }
 
@@ -56,18 +63,38 @@ class ScriptSandbox {
      * @return map of exitCode, stdout and stderr
      */
     Map run(String script, List<String> args = [], String jdkHome = JDK_HOMES.first()) {
-        def command = ["${jdkHome}\\bin\\java.exe".toString(),
+        writeGroovyShim(jdkHome)
+
+        def command = [javaOf(jdkHome),
                        '-cp', System.getProperty('script.runtime.classpath'),
                        "-Duser.home=${home.absolutePath}".toString(),
                        'groovy.ui.GroovyMain',
                        new File(scriptDir, script).absolutePath] + args
 
-        def process = command.execute()
+        // jdk-init shells out to "groovy" by name, so the shim has to win the PATH lookup
+        def builder = new ProcessBuilder(command)
+        builder.environment().put('PATH', "${scriptDir.absolutePath};${System.getenv('PATH')}".toString())
+
+        def process = builder.start()
         def stdout = new StringWriter()
         def stderr = new StringWriter()
         process.waitForProcessOutput(stdout, stderr)
 
         return [exitCode: process.exitValue(), stdout: stdout.toString(), stderr: stderr.toString()]
+    }
+
+    /**
+     * Read a machine-scope environment variable, which is what jdk-init writes
+     * @param name Variable name
+     *
+     * @return the raw value, empty when the variable is not set
+     */
+    static String machineEnv(String name) {
+        def process = ['powershell', '-NoProfile', '-Command',
+                       "[Environment]::GetEnvironmentVariable('${name}', 'Machine')"].execute()
+        def stdout = new StringWriter()
+        process.waitForProcessOutput(stdout, new StringWriter())
+        return stdout.toString().trim()
     }
 
     /**
@@ -88,6 +115,23 @@ class ScriptSandbox {
      */
     static boolean symlinksAvailable() {
         return new GroovyShell().evaluate(new File('common.groovy')).canCreateSymlinks()
+    }
+
+    private static String javaOf(String jdkHome) {
+        return new File(jdkHome, 'bin/java.exe').absolutePath
+    }
+
+    /**
+     * jdk-init runs "cmd /c groovy <script>" for its two child scripts. Rather than requiring a
+     * Groovy installation, put a shim on the PATH that reaches the same runtime and, critically,
+     * carries the sandboxed user.home so the children cannot escape into the real .jdks.
+     */
+    private void writeGroovyShim(String jdkHome) {
+        new File(scriptDir, 'groovy.bat').text = [
+            '@echo off',
+            "\"${javaOf(jdkHome)}\" -cp \"${System.getProperty('script.runtime.classpath')}\" " +
+                "\"-Duser.home=${home.absolutePath}\" groovy.ui.GroovyMain %*"
+        ].join('\r\n') + '\r\n'
     }
 
     private void writeConfig() {
