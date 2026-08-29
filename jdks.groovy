@@ -90,3 +90,20 @@ if (!common.createSymlink(SYMLINK_PATH, targetPath)) {
 }
 
 println("Successfully switched to JDK ${jdkVersion}")
+
+// Report what the new symlink actually resolves to. This walks both symlink hops and proves the
+// target really is a JDK, which the existence check above cannot tell.
+def javaExe = new File(SYMLINK_PATH, 'bin\\java.exe')
+
+if (!javaExe.exists()) {
+    System.err.println("Warning: ${javaExe} not found, ${targetPath} does not look like a JDK")
+} else {
+    def result = common.runCommand([javaExe.absolutePath, '-version'])
+    def banner = common.firstNonBlankLine(result.err, result.out)
+
+    if (result.exitCode == 0 && banner) {
+        println("  ${banner}")
+    } else {
+        System.err.println("Warning: could not run ${javaExe}: ${result.err.trim()}")
+    }
+}

@@ -49,6 +49,20 @@ class CommonSpec extends Specification {
         ['21.0.7', '21.0.7.6', '21.0.9']    || '21.0.9'
     }
 
+    def "firstNonBlankLine picks #expected from #description"() {
+        expect:
+        common.firstNonBlankLine(*texts) == expected
+
+        where:
+        description                     | texts                                        || expected
+        'stderr, where java writes it'  | ['openjdk version "25"', '']                 || 'openjdk version "25"'
+        'stdout when stderr is empty'   | ['', 'openjdk version "25"']                 || 'openjdk version "25"'
+        'stderr first when both differ' | ['from stderr', 'from stdout']               || 'from stderr'
+        'a leading blank line'          | ["\r\n  openjdk version \"25\"\r\nmore", ''] || 'openjdk version "25"'
+        'nothing at all'                | ['', '']                                     || null
+        'only whitespace'               | ['   \r\n\t', null]                          || null
+    }
+
     def "escapePowerShellLiteral turns #value into #expected"() {
         expect:
         common.escapePowerShellLiteral(value) == expected

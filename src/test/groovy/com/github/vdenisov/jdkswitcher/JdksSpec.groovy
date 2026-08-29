@@ -37,6 +37,19 @@ class JdksSpec extends Specification {
         jdkHome << ScriptSandbox.JDK_HOMES
     }
 
+    def "warns when the target does not look like a JDK"() {
+        given: "an installation with no bin directory at all"
+        sandbox.createJdk('temurin-25.0.4.1')
+        sandbox.run('jdk-update.groovy')
+
+        when:
+        def result = sandbox.run('jdks.groovy', ['25'])
+
+        then: "the switch still succeeds, the user may have pointed it somewhere deliberately"
+        result.exitCode == 0
+        result.stderr.contains('does not look like a JDK')
+    }
+
     def "latest selects the highest major version"() {
         given:
         ['temurin-11.0.32.1', 'temurin-17.0.16', 'temurin-25.0.4.1'].each { sandbox.createJdk(it) }
