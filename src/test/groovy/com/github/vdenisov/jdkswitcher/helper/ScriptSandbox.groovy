@@ -11,7 +11,8 @@ import java.nio.file.Files
 class ScriptSandbox {
 
     private static final List<String> SCRIPTS =
-        ['common.groovy', 'jdk-update.groovy', 'jdks.groovy', 'jdk-init.groovy']
+        ['common.groovy', 'jdk-update.groovy', 'jdks.groovy', 'jdk-init.groovy',
+         'jdk-common.bat', 'jdk-update.bat', 'jdks.bat', 'jdk-init.bat']
 
     /** JDK homes the scripts are executed under, one process each. */
     static final List<String> JDK_HOMES =
