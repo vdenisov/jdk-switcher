@@ -27,6 +27,41 @@ def runCommand(String command) {
 }
 
 /**
+ * Run a command given as an already split argument list
+ *
+ * Prefer this over the string form whenever an argument can contain spaces: the string form splits
+ * on whitespace, and quoting a path does not survive that.
+ * @param command The executable followed by its arguments
+ *
+ * @return map of exitCode, out and err
+ */
+def runCommand(List<String> command) {
+    def process = command.execute()
+    def out = new StringWriter()
+    def err = new StringWriter()
+    process.waitForProcessOutput(out, err)
+
+    return [exitCode: process.exitValue(), out: out.toString(), err: err.toString()]
+}
+
+/**
+ * Return the first line of the given texts that is not blank
+ *
+ * Used to pick a command's banner without caring which stream it came out of - java writes its
+ * -version output to stderr, not stdout.
+ * @param texts The texts to scan, in order of preference
+ *
+ * @return the trimmed first non-blank line, null when there is none
+ */
+def firstNonBlankLine(String... texts) {
+    return texts.collect { it ?: '' }
+        .join('\n')
+        .readLines()
+        .find { it.trim() }
+        ?.trim()
+}
+
+/**
  * Escape a value for embedding in a single-quoted PowerShell string literal
  *
  * A single quote is PowerShell's own escape character inside such a literal, and it is a perfectly
