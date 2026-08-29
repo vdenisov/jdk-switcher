@@ -1,8 +1,33 @@
 #!/usr/bin/env groovy
 
+import java.nio.file.Files
+import java.nio.file.LinkOption
+
 /**
  * Common utility functions for JDK Switcher scripts
  */
+
+/**
+ * Check whether a directory entry exists, without following symlinks
+ * Unlike File#exists, this returns true for a dangling symlink, i.e. one whose
+ * target has been renamed or removed
+ * @param path The path to check
+ *
+ * @return true if the directory entry exists
+ */
+def pathExists(String path) {
+    return Files.exists(new File(path).toPath(), LinkOption.NOFOLLOW_LINKS)
+}
+
+/**
+ * Check whether a path is a symlink, regardless of whether its target resolves
+ * @param path The path to check
+ *
+ * @return true if the path is a symlink
+ */
+def isSymlink(String path) {
+    return Files.isSymbolicLink(new File(path).toPath())
+}
 
 /**
  * Check if the current user can create directory symlinks
@@ -73,8 +98,7 @@ def exitWithSymlinkError() {
  * @return true if removal was successful or symlink didn't exist, false on error
  */
 def removeSymlink(String symlinkPath) {
-    def symlinkFile = new File(symlinkPath)
-    if (!symlinkFile.exists()) {
+    if (!pathExists(symlinkPath)) {
         return true
     }
 
@@ -121,6 +145,64 @@ def createSymlink(String symlinkPath, String targetPath) {
     }
 
     return true
+}
+
+/**
+ * Compare two version component lists, treating missing components as zero,
+ * so 25.0.4.1 outranks 25.0.4 and 25.0.10 outranks 25.0.4
+ * @param left Components of the left version
+ * @param right Components of the right version
+ *
+ * @return negative, zero or positive as left is lower than, equal to or higher than right
+ */
+def compareVersions(List<Integer> left, List<Integer> right) {
+    for (int i = 0; i < Math.max(left.size(), right.size()); i++) {
+        def result = (left[i] ?: 0) <=> (right[i] ?: 0)
+        if (result != 0) {
+            return result
+        }
+    }
+    return 0
+}
+
+/**
+ * Find the highest-versioned JDK in a list of entries produced by discoverJdks
+ * @param jdks The entries to choose from
+ *
+ * @return the entry with the highest version, null if the list is empty
+ */
+def findLatestJdk(jdks) {
+    return jdks.max { a, b -> compareVersions(a.versionParts, b.versionParts) }
+}
+
+/**
+ * Scan a directory for JDK installations named <vendor>-<version>
+ * Numerically named entries are skipped, as those are the version symlinks this tool creates
+ * @param jdksDir The directory to scan
+ *
+ * @return map of major version to entries holding vendor, version, versionParts and directory
+ */
+def discoverJdks(File jdksDir) {
+    def jdksByMajor = [:].withDefault { [] }
+
+    jdksDir.listFiles().each { file ->
+        if (file.isDirectory() && !file.name.isNumber()) {
+            // Parse format: <vendor>-<version>
+            def matcher = file.name =~ /^(.+)-(\d+(?:\.\d+)*(?:\.\d+)?)$/
+            if (matcher) {
+                def versionParts = matcher[0][2].tokenize('.').collect { it.toInteger() }
+
+                jdksByMajor[versionParts[0]] << [
+                    vendor: matcher[0][1],
+                    version: matcher[0][2],
+                    versionParts: versionParts,
+                    directory: file
+                ]
+            }
+        }
+    }
+
+    return jdksByMajor
 }
 
 // Return this binding to make functions available to importing scripts
