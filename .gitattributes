@@ -12,6 +12,8 @@ settings.gradle export-ignore
 /.idea export-ignore
 *.iml export-ignore
 INSTRUCTIONS.md export-ignore
+PLAN.md export-ignore
+CONTRIBUTING.md export-ignore
 
 # Keep runtime files in releases:
 # - *.groovy (main scripts)
