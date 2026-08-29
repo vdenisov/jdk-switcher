@@ -10,8 +10,24 @@ repositories {
     mavenCentral()
 }
 
+java {
+    // Local runs pin a predictable LTS; the scripts themselves are exercised across the whole
+    // 11..25 matrix as separate processes, see the scriptRuntime configuration below
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    // Groovy that runs the scripts under test, deliberately separate from the Groovy that Spock
+    // needs: 4.0.x cannot load JDK 25 class files (major version 69), and 25 is in the matrix
+    scriptRuntime
+}
+
 dependencies {
     implementation 'org.apache.groovy:groovy-all:4.0.23'
+
+    scriptRuntime 'org.apache.groovy:groovy:5.0.6'
 
     testImplementation 'org.spockframework:spock-core:2.3-groovy-4.0'
     testImplementation 'org.apache.groovy:groovy-all:4.0.23'
@@ -32,14 +48,19 @@ sourceSets {
         groovy {
             srcDirs = ['src/test/groovy']
         }
-        resources {
-            srcDirs = ['src/test/resources']
-        }
     }
 }
 
 test {
     useJUnitPlatform()
+
+    // Comma-separated JDK homes the scripts are run under; defaults to the test JVM's own
+    systemProperty 'jdk.homes', System.getProperty('jdk.homes', '')
+
+    doFirst {
+        systemProperty 'script.runtime.classpath', configurations.scriptRuntime.asPath
+    }
+
     testLogging {
         events "passed", "skipped", "failed"
         exceptionFormat "full"

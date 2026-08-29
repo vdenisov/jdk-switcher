@@ -20,3 +20,19 @@ INSTRUCTIONS.md export-ignore
 # - README.md
 # - LICENSE
 # - .gitignore (useful for contributors)
+
+# Ensure Windows line endings for batch files
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Ensure LF for Groovy scripts (cross-platform)
+*.groovy text eol=lf
+
+# Ensure LF for Gradle wrapper
+gradlew text eol=lf
+
+# Ensure CRLF for Gradle wrapper (Windows)
+gradlew.bat text eol=crlf
+
+# CI configuration is not part of a release
+/.github export-ignore
