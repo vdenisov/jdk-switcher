@@ -27,6 +27,20 @@ def runCommand(String command) {
 }
 
 /**
+ * Escape a value for embedding in a single-quoted PowerShell string literal
+ *
+ * A single quote is PowerShell's own escape character inside such a literal, and it is a perfectly
+ * legal character in a Windows path, so a user directory like C:\Users\O'Brien puts one straight
+ * into PATH and would otherwise produce a broken command.
+ * @param value The value to escape, may be null
+ *
+ * @return the escaped value, empty for null
+ */
+def escapePowerShellLiteral(String value) {
+    return value == null ? '' : value.replace("'", "''")
+}
+
+/**
  * Check whether a directory entry exists, without following symlinks
  * Unlike File#exists, this returns true for a dangling symlink, i.e. one whose
  * target has been renamed or removed
