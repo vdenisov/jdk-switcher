@@ -18,19 +18,23 @@ java {
     }
 }
 
+// Groovy the scripts are run with, override with -PgroovyVersion to test another line.
+// The group id changed at Groovy 4, so 3.0.x still lives under org.codehaus.groovy.
+def scriptGroovyVersion = findProperty('groovyVersion') ?: '5.0.8'
+def scriptGroovyGroup = scriptGroovyVersion.startsWith('3.') ? 'org.codehaus.groovy' : 'org.apache.groovy'
+
 configurations {
-    // Groovy that runs the scripts under test, deliberately separate from the Groovy that Spock
-    // needs: 4.0.x cannot load JDK 25 class files (major version 69), and 25 is in the matrix
+    // Kept separate from the Groovy that Spock needs, so the two can move independently
     scriptRuntime
 }
 
 dependencies {
-    implementation 'org.apache.groovy:groovy-all:4.0.23'
+    implementation 'org.apache.groovy:groovy-all:5.0.8'
 
-    scriptRuntime 'org.apache.groovy:groovy:5.0.6'
+    scriptRuntime "${scriptGroovyGroup}:groovy:${scriptGroovyVersion}"
 
-    testImplementation 'org.spockframework:spock-core:2.3-groovy-4.0'
-    testImplementation 'org.apache.groovy:groovy-all:4.0.23'
+    testImplementation 'org.spockframework:spock-core:2.4-groovy-5.0'
+    testImplementation 'org.apache.groovy:groovy-all:5.0.8'
 }
 
 sourceSets {
@@ -57,13 +61,18 @@ test {
     // Comma-separated JDK homes the scripts are run under; defaults to the test JVM's own
     systemProperty 'jdk.homes', System.getProperty('jdk.homes', '')
 
+    // The scripts are what is under test, so a different Groovy runtime is a different test run.
+    // Without this the task stays up to date across -PgroovyVersion changes and silently reports
+    // a pass for a version it never executed.
+    inputs.files(configurations.scriptRuntime).withPropertyName('scriptRuntime')
+
     doFirst {
         systemProperty 'script.runtime.classpath', configurations.scriptRuntime.asPath
     }
 
     testLogging {
-        events "passed", "skipped", "failed"
-        exceptionFormat "full"
+        events = ['passed', 'skipped', 'failed']
+        exceptionFormat = 'full'
         showStandardStreams = false
     }
 }
