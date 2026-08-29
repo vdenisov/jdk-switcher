@@ -1,0 +1,38 @@
+# Exclude test and development files from release archives
+/src/test export-ignore
+/build export-ignore
+/.gradle export-ignore
+/gradle export-ignore
+/gradlew export-ignore
+/gradlew.bat export-ignore
+build.gradle export-ignore
+settings.gradle export-ignore
+
+# Exclude IDE and documentation files
+/.idea export-ignore
+*.iml export-ignore
+INSTRUCTIONS.md export-ignore
+
+# Keep runtime files in releases:
+# - *.groovy (main scripts)
+# - *.bat (launcher scripts)
+# - config.properties
+# - README.md
+# - LICENSE
+# - .gitignore (useful for contributors)
+
+# Ensure Windows line endings for batch files
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Ensure LF for Groovy scripts (cross-platform)
+*.groovy text eol=lf
+
+# Ensure LF for Gradle wrapper
+gradlew text eol=lf
+
+# Ensure CRLF for Gradle wrapper (Windows)
+gradlew.bat text eol=crlf
+
+# CI configuration is not part of a release
+/.github export-ignore

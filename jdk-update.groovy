@@ -73,61 +73,41 @@ if (args.length == 1) {
     }
 }
 
-// Parse JDK directory names and group by major version
-def jdksByMajor = [:].withDefault { [] }
-
-jdksDir.listFiles().each { file ->
-    if (file.isDirectory() && !file.name.isNumber()) {
-        // Parse format: <vendor>-<version>
-        def matcher = file.name =~ /^(.+)-(\d+(?:\.\d+)*(?:\.\d+)?)$/
-        if (matcher) {
-            def vendor = matcher[0][1]
-            def version = matcher[0][2]
-            def versionParts = version.tokenize('.')
-            def majorVersion = versionParts[0].toInteger()
-
-            jdksByMajor[majorVersion] << [
-                vendor: vendor,
-                version: version,
-                versionParts: versionParts.collect { it.toInteger() },
-                majorVersion: majorVersion,
-                directory: file
-            ]
-        }
+// Handle specific version update with explicit path
+// Handled before discovery, as an explicitly given target does not depend on what is installed
+if (specificJdkPath) {
+    def success = updateSymlink(common, jdksDir, specificMajorVersion, specificJdkPath, specificJdkPath)
+    if (success) {
+        println("\nSymlink updated successfully!")
     }
+    System.exit(success ? 0 : 1)
 }
+
+// Parse JDK directory names and group by major version
+def jdksByMajor = common.discoverJdks(jdksDir)
 
 if (jdksByMajor.isEmpty()) {
     println("No JDK installations found in ${jdksDir.absolutePath}")
     System.exit(0)
 }
 
-// Enumerate discovered JDKs (skip if explicit path provided)
-if (!specificJdkPath) {
-    println("Found JDK installations:")
-    jdksByMajor.sort().each { majorVersion, jdks ->
-        println("  JDK ${majorVersion}:")
-        jdks.sort { it.version }.each { jdk ->
-            println("    - ${jdk.vendor}-${jdk.version}")
-        }
-    }
-    println()
-}
-
-// Helper function to find latest JDK from a list
-def findLatestJdk(jdks) {
-    return jdks.max { jdk ->
-        def parts = jdk.versionParts + [0, 0, 0]
-        parts[0] * 1000000 + parts[1] * 1000 + parts[2]
+// Enumerate discovered JDKs
+println("Found JDK installations:")
+jdksByMajor.sort().each { majorVersion, jdks ->
+    println("  JDK ${majorVersion}:")
+    jdks.sort { a, b -> common.compareVersions(a.versionParts, b.versionParts) }.each { jdk ->
+        println("    - ${jdk.vendor}-${jdk.version}")
     }
 }
+println()
 
 // Helper function to create/update symlink
 def updateSymlink(common, jdksDir, majorVersion, targetPath, description) {
     def symlinkPath = new File(jdksDir, majorVersion.toString()).absolutePath
 
-    // Remove existing symlink if it exists
-    if (new File(symlinkPath).exists()) {
+    // Remove existing symlink if it exists; NOFOLLOW so a dangling symlink is still removed,
+    // otherwise mklink fails on the leftover directory entry
+    if (common.pathExists(symlinkPath)) {
         println("Removing existing symlink: ${symlinkPath}")
         if (!common.removeSymlink(symlinkPath)) {
             return false
@@ -144,15 +124,6 @@ def updateSymlink(common, jdksDir, majorVersion, targetPath, description) {
     return true
 }
 
-// Handle specific version update with explicit path
-if (specificJdkPath) {
-    def success = updateSymlink(common, jdksDir, specificMajorVersion, specificJdkPath, specificJdkPath)
-    if (success) {
-        println("\nSymlink updated successfully!")
-    }
-    System.exit(success ? 0 : 1)
-}
-
 // Handle specific version update (find latest)
 if (specificMajorVersion) {
     if (!jdksByMajor.containsKey(specificMajorVersion)) {
@@ -160,7 +131,7 @@ if (specificMajorVersion) {
         System.exit(1)
     }
 
-    def latest = findLatestJdk(jdksByMajor[specificMajorVersion])
+    def latest = common.findLatestJdk(jdksByMajor[specificMajorVersion])
     def success = updateSymlink(common, jdksDir, specificMajorVersion, latest.directory.absolutePath, "${latest.vendor}-${latest.version}")
     if (success) {
         println("\nSymlink updated successfully!")
@@ -169,9 +140,18 @@ if (specificMajorVersion) {
 }
 
 // Update all major versions (default behavior with no arguments)
+def failedVersions = []
+
 jdksByMajor.each { majorVersion, jdks ->
-    def latest = findLatestJdk(jdks)
-    updateSymlink(common, jdksDir, majorVersion, latest.directory.absolutePath, "${latest.vendor}-${latest.version}")
+    def latest = common.findLatestJdk(jdks)
+    if (!updateSymlink(common, jdksDir, majorVersion, latest.directory.absolutePath, "${latest.vendor}-${latest.version}")) {
+        failedVersions << majorVersion
+    }
+}
+
+if (failedVersions) {
+    System.err.println("\nERROR: Failed to update symlinks for JDK ${failedVersions.sort().join(', ')}")
+    System.exit(1)
 }
 
 println("\nSymlink update complete!")

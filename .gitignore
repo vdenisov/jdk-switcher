@@ -1,8 +1,22 @@
 ### IntelliJ IDEA ###
 .idea/
+*.iml
+out/
 
 ### VS Code ###
 .vscode/
 
 ### Mac OS ###
 .DS_Store
+
+### Gradle ###
+.gradle/
+build/
+
+### Test outputs ###
+test-results/
+reports/
+
+### Temporary files ###
+*.log
+*.tmp

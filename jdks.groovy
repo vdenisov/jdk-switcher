@@ -44,8 +44,10 @@ if (jdkVersion.toLowerCase() == 'latest') {
         System.exit(1)
     }
 
+    // Include dangling symlinks, so a broken link fails loudly below instead of
+    // silently downgrading to an older version
     def majorVersions = files
-        .findAll { it.isDirectory() && it.name.isNumber() }
+        .findAll { it.name.isNumber() && (it.isDirectory() || common.isSymlink(it.absolutePath)) }
         .collect { it.name.toInteger() }
 
     if (majorVersions.isEmpty()) {
@@ -63,12 +65,18 @@ def targetPath = new File(userHome, "${JDKS_BASE_DIR}\\${jdkVersion}").absoluteP
 // Check if target JDK directory exists
 def targetDir = new File(targetPath)
 if (!targetDir.exists()) {
-    System.err.println("Error: Target JDK directory does not exist: ${targetPath}")
+    if (common.isSymlink(targetPath)) {
+        System.err.println("Error: JDK ${jdkVersion} symlink is dangling, its target no longer exists: ${targetPath}")
+        System.err.println("Please run 'jdk-update' to repoint it at the installed JDK")
+    } else {
+        System.err.println("Error: Target JDK directory does not exist: ${targetPath}")
+    }
     System.exit(1)
 }
 
-// Remove existing symlink if it exists
-if (new File(SYMLINK_PATH).exists()) {
+// Remove existing symlink if it exists; NOFOLLOW so a dangling symlink is still removed,
+// otherwise mklink fails on the leftover directory entry
+if (common.pathExists(SYMLINK_PATH)) {
     println("Removing existing symlink at ${SYMLINK_PATH}")
     if (!common.removeSymlink(SYMLINK_PATH)) {
         System.exit(1)
