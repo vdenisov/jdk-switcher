@@ -37,6 +37,34 @@ class JdksSpec extends Specification {
         jdkHome << ScriptSandbox.JDK_HOMES
     }
 
+    def "reports the version of a real JDK after switching to it"() {
+        given: "an installation that genuinely runs, rather than a stub"
+        sandbox.createRealJdk('temurin-25.0.4.1')
+        sandbox.run('jdk-update.groovy')
+
+        when:
+        def result = sandbox.run('jdks.groovy', ['25'])
+
+        then: "the banner came from java itself, through both symlink hops"
+        result.exitCode == 0
+        result.stdout =~ /(?m)^\s+\w*jdk version "\d+/
+    }
+
+    def "reports the version of a real JDK with no arguments"() {
+        given:
+        sandbox.createRealJdk('temurin-25.0.4.1')
+        sandbox.run('jdk-update.groovy')
+        sandbox.run('jdks.groovy', ['25'])
+
+        when:
+        def result = sandbox.run('jdks.groovy')
+
+        then:
+        result.exitCode == 0
+        result.stdout.contains('Active JDK: temurin-25.0.4.1')
+        result.stdout =~ /(?m)^\s+\w*jdk version "\d+/
+    }
+
     def "warns when the target does not look like a JDK"() {
         given: "an installation with no bin directory at all"
         sandbox.createJdk('temurin-25.0.4.1')
