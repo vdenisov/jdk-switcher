@@ -32,6 +32,8 @@ JDK Switcher solves this problem by using a single directory symlink (`C:\jdk` o
 
 - **Windows 10/11** (or any other Windows version with symlink support)
 - **Groovy** installed and available in PATH ([Download Groovy](https://groovy-lang.org/download.html))
+  - Tested against Groovy 3.0, 4.0 and 5.0, on every LTS JDK from 11 to 25
+  - Note that a Groovy patch release can be too old for a JDK released after it - Groovy 4.0.23 cannot run on JDK 25 at all. If Groovy fails to start, upgrade it before anything else.
 - **Administrator privileges** (required for initial setup and creating symlinks by default)
   - **Alternative:** Enable Windows Developer Mode or grant `SeCreateSymbolicLinkPrivilege` to your user account to create symlinks without elevation
 - One or more JDK installations
@@ -118,13 +120,47 @@ jdks.symlink.path=C:\\jdk
 
 ## Usage
 
+### Show the Active JDK
+
+```cmd
+jdks
+```
+
+Prints the JDK the active symlink currently resolves to, the version it reports, and every version symlink available to switch to:
+
+```
+Active JDK: temurin-25.0.4.1 (C:\jdk)
+  openjdk version "25.0.4.1" 2026-08-18 LTS
+
+Available versions:
+  11 -> temurin-11.0.32.1
+  17 -> temurin-17.0.16
+  21 -> corretto-21.0.12.1
+  25 -> temurin-25.0.4.1  (active)
+```
+
+A symlink whose target has been renamed is reported as dangling rather than quietly skipped, which is the usual sign that `jdk-update` needs running. This is the one command that works without symlink privileges, since it changes nothing.
+
+### Show Usage
+
+```cmd
+jdks --help
+```
+
+Also accepts `-h` and `help`. Note that `/?` is **not** supported: the Java launcher expands `?` as a wildcard on Windows, so the argument never reaches the script intact.
+
 ### Switch to a Specific JDK Version
 
 ```cmd
 jdks 17
 ```
 
-Switches to JDK 17 (uses the symlink `%USERPROFILE%\.jdks\17`, which points to the latest installed JDK 17).
+Switches to JDK 17 (uses the symlink `%USERPROFILE%\.jdks\17`, which points to the latest installed JDK 17), then reports what the new symlink actually resolves to:
+
+```
+Successfully switched to JDK 17
+  openjdk version "17.0.16" 2025-07-15
+```
 
 ### Switch to the Latest Installed JDK
 

@@ -134,15 +134,96 @@ class JdksSpec extends Specification {
         result.stderr.contains('No JDK version symlinks found')
     }
 
-    def "requires exactly one argument"() {
+    def "rejects more than one argument"() {
         when:
-        def result = sandbox.run('jdks.groovy', args)
+        def result = sandbox.run('jdks.groovy', ['17', 'extra'])
+
+        then: "usage goes to stderr, since it was provoked rather than asked for"
+        result.exitCode == 1
+        result.stderr.contains('expected at most one argument')
+        result.stderr.contains('Usage: jdks')
+    }
+
+    def "prints usage on stdout for #flag"() {
+        when:
+        def result = sandbox.run('jdks.groovy', [flag])
 
         then:
-        result.exitCode == 1
-        result.stderr.contains('Usage: jdks')
+        result.exitCode == 0
+        result.stdout.contains('Usage: jdks')
+        result.stdout.contains('jdks latest')
+
+        and: "the other two commands are discoverable from here"
+        result.stdout.contains('jdk-update')
+        result.stdout.contains('jdk-init')
 
         where:
-        args << [[], ['17', 'extra']]
+        // /? is not here on purpose: the Java launcher glob-expands "?" on Windows before the
+        // script sees it, so the flag cannot be supported through this invocation path
+        flag << ['--help', '-h', 'help', '--HELP']
+    }
+
+    def "with no arguments reports the active JDK and what is available"() {
+        given:
+        ['temurin-11.0.32.1', 'temurin-17.0.16', 'temurin-25.0.4.1'].each { sandbox.createJdk(it) }
+        sandbox.run('jdk-update.groovy')
+        sandbox.run('jdks.groovy', ['17'])
+
+        when:
+        def result = sandbox.run('jdks.groovy')
+
+        then:
+        result.exitCode == 0
+        result.stdout.contains('Active JDK: temurin-17.0.16')
+
+        and: "every version symlink is listed against the installation it resolves to"
+        result.stdout.contains('11 -> temurin-11.0.32.1')
+        result.stdout.contains('17 -> temurin-17.0.16  (active)')
+        result.stdout.contains('25 -> temurin-25.0.4.1')
+
+        and: "only the active one is marked"
+        result.stdout.count('(active)') == 1
+
+        and: "usage stays discoverable without printing the whole block every time"
+        result.stdout.contains("'jdks --help' for all options")
+        !result.stdout.contains('Usage: jdks')
+    }
+
+    def "with no arguments says so when nothing is active yet"() {
+        given:
+        sandbox.createJdk('temurin-25.0.4.1')
+        sandbox.run('jdk-update.groovy')
+
+        when:
+        def result = sandbox.run('jdks.groovy')
+
+        then:
+        result.exitCode == 0
+        result.stdout.contains('Active JDK: none')
+        result.stdout.contains('25 -> temurin-25.0.4.1')
+        !result.stdout.contains('(active)')
+    }
+
+    def "with no arguments points at jdk-update when there are no version symlinks"() {
+        when:
+        def result = sandbox.run('jdks.groovy')
+
+        then:
+        result.exitCode == 0
+        result.stdout.contains("run 'jdk-update' to create them")
+    }
+
+    def "with no arguments reports a dangling version symlink instead of hiding it"() {
+        given:
+        sandbox.createJdk('temurin-25.0.4')
+        sandbox.run('jdk-update.groovy')
+        new File(sandbox.jdksDir, 'temurin-25.0.4').renameTo(new File(sandbox.jdksDir, 'temurin-25.0.4.1'))
+
+        when:
+        def result = sandbox.run('jdks.groovy')
+
+        then:
+        result.exitCode == 0
+        result.stdout.contains('25 -> dangling, run jdk-update')
     }
 }
