@@ -52,16 +52,17 @@ println("  ✓ JDKs directory found: ${jdksDir.absolutePath}\n")
 // Helper function to read environment variable with fallback
 def getEnvVar(common, String varName) {
     // Try PowerShell first
-    def psCmd = "powershell -ExecutionPolicy Bypass -Command \"[Environment]::GetEnvironmentVariable('${varName}', 'Machine')\""
-    def psResult = common.runCommand(psCmd)
+    def psResult = common.runCommand(['powershell', '-ExecutionPolicy', 'Bypass', '-Command',
+                                      "[Environment]::GetEnvironmentVariable('${varName}', 'Machine')"])
 
     if (psResult.exitCode == 0) {
         return psResult.out.trim()
     }
 
-    // Fallback to reg query
-    def regCmd = "reg query \"HKLM\\System\\CurrentControlSet\\Control\\Session Manager\\Environment\" /v ${varName}"
-    def regResult = common.runCommand(regCmd)
+    // Fallback to reg query. The key contains a space, so it has to travel as one argument.
+    def regResult = common.runCommand(['reg', 'query',
+                                       'HKLM\\System\\CurrentControlSet\\Control\\Session Manager\\Environment',
+                                       '/v', varName])
 
     if (regResult.exitCode == 0) {
         def output = regResult.out
@@ -78,8 +79,8 @@ def getEnvVar(common, String varName) {
 def setEnvVar(common, String varName, String value) {
     // Try PowerShell first
     def psValue = common.escapePowerShellLiteral(value)
-    def psCmd = "powershell -ExecutionPolicy Bypass -Command \"[Environment]::SetEnvironmentVariable('${varName}', '${psValue}', 'Machine')\""
-    def psResult = common.runCommand(psCmd)
+    def psResult = common.runCommand(['powershell', '-ExecutionPolicy', 'Bypass', '-Command',
+                                      "[Environment]::SetEnvironmentVariable('${varName}', '${psValue}', 'Machine')"])
 
     if (psResult.exitCode == 0) {
         return true
@@ -87,9 +88,11 @@ def setEnvVar(common, String varName, String value) {
 
     println("  PowerShell failed, trying registry method...")
 
-    // Fallback to reg add
-    def regCmd = "reg add \"HKLM\\System\\CurrentControlSet\\Control\\Session Manager\\Environment\" /v ${varName} /t REG_EXPAND_SZ /d \"${value}\" /f"
-    def regResult = common.runCommand(regCmd)
+    // Fallback to reg add. The value travels as its own argument, so runs of spaces inside PATH
+    // survive rather than being collapsed.
+    def regResult = common.runCommand(['reg', 'add',
+                                       'HKLM\\System\\CurrentControlSet\\Control\\Session Manager\\Environment',
+                                       '/v', varName, '/t', 'REG_EXPAND_SZ', '/d', value, '/f'])
 
     if (regResult.exitCode == 0) {
         return true

@@ -128,6 +128,19 @@ class JdkUpdateSpec extends Specification {
         sandbox.targetOf(new File(sandbox.jdksDir, '25')).endsWith('temurin-25.0.4.1')
     }
 
+    def "links a target whose path contains consecutive spaces"() {
+        given: "runs of whitespace are what a splitting command line silently collapses"
+        def spaced = new File(home, 'program  files/temurin-25.0.4.1')
+        spaced.mkdirs()
+
+        when:
+        def result = sandbox.run('jdk-update.groovy', ['25', spaced.absolutePath])
+
+        then: "the symlink resolves to the real directory, not to a single-spaced near miss"
+        result.exitCode == 0
+        new File(sandbox.jdksDir, '25').toPath().toRealPath() == spaced.toPath().toRealPath()
+    }
+
     def "fails when the requested major version has no installation"() {
         given:
         sandbox.createJdk('temurin-17.0.16')

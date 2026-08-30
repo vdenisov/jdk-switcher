@@ -10,27 +10,14 @@ import java.nio.file.LinkOption
 /**
  * Run a command and collect its output
  *
+ * The command is given as an already split argument list, never as a single string. The string
+ * form goes through Runtime#exec, which splits on whitespace and collapses runs of it, so a path
+ * containing two consecutive spaces silently becomes a different path - and mklink then reports
+ * success while creating a symlink to somewhere that does not exist.
+ *
  * Both streams are drained while the process runs. A bare waitFor deadlocks whenever the child
  * writes more than the pipe buffer holds (roughly 4 KB on Windows), which the machine PATH alone
  * can exceed, so every command in these scripts goes through here.
- * @param command The command line to run
- *
- * @return map of exitCode, out and err
- */
-def runCommand(String command) {
-    def process = command.execute()
-    def out = new StringWriter()
-    def err = new StringWriter()
-    process.waitForProcessOutput(out, err)
-
-    return [exitCode: process.exitValue(), out: out.toString(), err: err.toString()]
-}
-
-/**
- * Run a command given as an already split argument list
- *
- * Prefer this over the string form whenever an argument can contain spaces: the string form splits
- * on whitespace, and quoting a path does not survive that.
  * @param command The executable followed by its arguments
  *
  * @return map of exitCode, out and err
@@ -112,12 +99,12 @@ def canCreateSymlinks() {
         testTarget.mkdirs()
 
         // Try to create a symlink
-        def success = runCommand("cmd /c mklink /D \"${testSymlink.absolutePath}\" \"${testTarget.absolutePath}\"")
-            .exitCode == 0
+        def success = runCommand(['cmd', '/c', 'mklink', '/D',
+                                  testSymlink.absolutePath, testTarget.absolutePath]).exitCode == 0
 
         // Clean up
         if (testSymlink.exists()) {
-            runCommand("cmd /c rmdir \"${testSymlink.absolutePath}\"")
+            runCommand(['cmd', '/c', 'rmdir', testSymlink.absolutePath])
         }
         if (testTarget.exists()) {
             testTarget.delete()
@@ -135,7 +122,7 @@ def canCreateSymlinks() {
  */
 def isAdmin() {
     try {
-        return runCommand('net session').exitCode == 0
+        return runCommand(['net', 'session']).exitCode == 0
     } catch (Exception e) {
         return false
     }
@@ -164,7 +151,7 @@ def removeSymlink(String symlinkPath) {
         return true
     }
 
-    def result = runCommand("cmd /c rmdir \"${symlinkPath}\"")
+    def result = runCommand(['cmd', '/c', 'rmdir', symlinkPath])
 
     if (result.exitCode != 0) {
         System.err.println("Error removing symlink ${symlinkPath}:")
@@ -188,7 +175,7 @@ def removeSymlink(String symlinkPath) {
  * @return true if creation was successful, false on error
  */
 def createSymlink(String symlinkPath, String targetPath) {
-    def result = runCommand("cmd /c mklink /D \"${symlinkPath}\" \"${targetPath}\"")
+    def result = runCommand(['cmd', '/c', 'mklink', '/D', symlinkPath, targetPath])
 
     if (result.exitCode != 0) {
         System.err.println("Error creating symlink ${symlinkPath}:")
