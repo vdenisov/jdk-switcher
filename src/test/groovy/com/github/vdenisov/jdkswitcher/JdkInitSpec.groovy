@@ -44,8 +44,9 @@ class JdkInitSpec extends Specification {
 
     def setup() {
         sandbox = new ScriptSandbox(home)
-        sandbox.createJdk('temurin-17.0.16', '17.0.16')
-        sandbox.createJdk('temurin-25.0.4.1', '25.0.4.1')
+        sandbox.createJdk('temurin-17.0.16')
+        // The newest is the one jdk-init will make active, so it is the one that has to run
+        sandbox.createRealJdk('temurin-25.0.4.1')
     }
 
     def "sets up the environment end to end under JDK #jdkHome"() {
@@ -68,8 +69,8 @@ class JdkInitSpec extends Specification {
         ScriptSandbox.machineEnv('Path').toLowerCase()
             .contains("${sandbox.activeJdk.absolutePath}\\bin".toLowerCase())
 
-        and: "java resolves all the way through the two symlink hops"
-        javaVersionThroughActiveJdk().contains('25.0.4.1')
+        and: "a real java runs all the way through the two symlink hops"
+        javaVersionThroughActiveJdk() =~ /\w*jdk version "\d+/
 
         where:
         jdkHome << ScriptSandbox.JDK_HOMES
@@ -93,12 +94,11 @@ class JdkInitSpec extends Specification {
     }
 
     /**
-     * Captures both streams, because a real java writes its -version banner to stderr and only the
-     * mock used here happens to echo on stdout.
+     * Captures both streams, because java writes its -version banner to stderr rather than stdout.
      */
     private String javaVersionThroughActiveJdk() {
-        def java = new File(sandbox.activeJdk, 'bin/java.bat')
-        def process = ['cmd', '/c', java.absolutePath, '-version'].execute()
+        def java = new File(sandbox.activeJdk, 'bin/java.exe')
+        def process = [java.absolutePath, '-version'].execute()
         def stdout = new StringWriter()
         def stderr = new StringWriter()
         process.waitForProcessOutput(stdout, stderr)

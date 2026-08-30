@@ -1,6 +1,7 @@
 package com.github.vdenisov.jdkswitcher.helper
 
 import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * Runs the JDK Switcher scripts against a throwaway home directory.
@@ -39,22 +40,62 @@ class ScriptSandbox {
     }
 
     /**
-     * Create a JDK installation directory named the way vendors name them
+     * Create an empty JDK installation directory named the way vendors name them
+     * Use createRealJdk instead when the test needs java to actually run.
      * @param name Directory name in <vendor>-<version> form
-     * @param version Version a mock bin\java.bat should report, no bin directory is created when null
      *
      * @return the created directory
      */
-    File createJdk(String name, String version = null) {
+    File createJdk(String name) {
         def jdk = new File(jdksDir, name)
         jdk.mkdirs()
+        return jdk
+    }
 
-        if (version) {
-            new File(jdk, 'bin').mkdirs()
-            new File(jdk, 'bin/java.bat').text = "@echo off\r\necho openjdk version \"${version}\"\r\n"
+    /**
+     * Create a JDK installation that really runs, by copying in a minimal jlink image
+     *
+     * It is copied rather than symlinked on purpose. A symlink pointing out of the temp tree is
+     * followed by @TempDir cleanup, which is how a real JDK on this machine was once deleted.
+     * @param name Directory name in <vendor>-<version> form
+     *
+     * @return the created directory
+     */
+    File createRealJdk(String name) {
+        def jdk = new File(jdksDir, name)
+        copyTree(realJdkImage(), jdk)
+        return jdk
+    }
+
+    /**
+     * Build, once per checkout, a minimal but genuine JDK for tests that need to run java
+     *
+     * java.base alone is enough to answer -version, and comes to about 47 MB against the 291 MB of
+     * a full installation. It lands under build/ so that a clean rebuilds it.
+     *
+     * @return the image directory
+     */
+    static synchronized File realJdkImage() {
+        def image = new File('build/test-jdk')
+
+        if (new File(image, 'bin/java.exe').exists()) {
+            return image
         }
 
-        return jdk
+        image.deleteDir()
+        def jlink = new File(System.getProperty('java.home'), 'bin/jlink.exe')
+        def process = [jlink.absolutePath, '--add-modules', 'java.base',
+                       '--no-header-files', '--no-man-pages',
+                       '--output', image.absolutePath].execute()
+        def stdout = new StringWriter()
+        def stderr = new StringWriter()
+        process.waitForProcessOutput(stdout, stderr)
+
+        if (process.exitValue() != 0) {
+            throw new IllegalStateException("jlink failed (exit ${process.exitValue()}): ${stderr.toString().trim()}")
+        }
+
+        return image
     }
 
     /**
@@ -130,6 +171,23 @@ class ScriptSandbox {
      */
     static boolean symlinksAvailable() {
         return new GroovyShell().evaluate(new File('common.groovy')).canCreateSymlinks()
+    }
+
+    private static void copyTree(File source, File target) {
+        def from = source.toPath()
+        def to = target.toPath()
+
+        Files.walk(from).withCloseable { paths ->
+            paths.forEach { path ->
+                def destination = to.resolve(from.relativize(path).toString())
+                if (Files.isDirectory(path)) {
+                    Files.createDirectories(destination)
+                } else {
+                    Files.createDirectories(destination.parent)
+                    Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING)
+                }
+            }
+        }
     }
 
     private static Map powershell(String script) {
