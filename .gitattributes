@@ -20,8 +20,10 @@ CONTRIBUTING.md export-ignore
 # - *.bat (launcher scripts)
 # - config.properties
 # - README.md
+# - CHANGELOG.md
 # - LICENSE
 # - .gitignore (useful for contributors)
+# - .gitattributes (same, and it documents what a release contains)
 
 # Ensure Windows line endings for batch files
 *.bat text eol=crlf

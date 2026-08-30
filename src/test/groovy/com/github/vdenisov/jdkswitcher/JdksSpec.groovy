@@ -97,7 +97,7 @@ class JdksSpec extends Specification {
         ['temurin-17.0.16', 'temurin-25.0.4'].each { sandbox.createJdk(it) }
         sandbox.run('jdk-update.groovy')
 
-        and: "the 25 installation is renamed out from under its symlink"
+        and: "only the newer 25 installation remains, so the version symlink is stale"
         new File(sandbox.jdksDir, 'temurin-25.0.4').renameTo(new File(sandbox.jdksDir, 'temurin-25.0.4.1'))
 
         when:
@@ -129,7 +129,7 @@ class JdksSpec extends Specification {
         sandbox.run('jdk-update.groovy')
         sandbox.run('jdks.groovy', ['25'])
 
-        and: "the 25 installation is renamed, so C:\\jdk now resolves through a broken link"
+        and: "only the newer 25 installation remains, so the active symlink resolves through a broken link"
         new File(sandbox.jdksDir, 'temurin-25.0.4').renameTo(new File(sandbox.jdksDir, 'temurin-25.0.4.1'))
 
         when:

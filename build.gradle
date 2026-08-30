@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'com.github.vdenisov'
-version = '0.1.0'
+version = '0.2.0'
 description = 'Fast JDK version switching for Windows via directory symlinks'
 
 repositories {

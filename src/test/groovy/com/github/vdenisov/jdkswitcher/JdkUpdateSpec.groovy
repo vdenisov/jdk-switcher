@@ -40,12 +40,12 @@ class JdkUpdateSpec extends Specification {
         jdkHome << ScriptSandbox.JDK_HOMES
     }
 
-    def "repoints a symlink whose target was renamed by a JDK update"() {
+    def "repoints a symlink whose target is gone after a JDK update"() {
         given: "a 25 symlink created against the pre-update directory"
         sandbox.createJdk('temurin-25.0.4')
         sandbox.run('jdk-update.groovy')
 
-        and: "the vendor renames the installation, leaving the symlink dangling"
+        and: "the superseded installation is gone and only the newer one remains"
         new File(sandbox.jdksDir, 'temurin-25.0.4').renameTo(new File(sandbox.jdksDir, 'temurin-25.0.4.1'))
 
         expect: "the symlink is now broken, which File#exists cannot see"
