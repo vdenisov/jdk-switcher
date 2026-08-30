@@ -27,7 +27,9 @@ class ScriptSandbox {
     ScriptSandbox(File home) {
         this.home = home
         this.jdksDir = new File(home, '.jdks')
-        this.activeJdk = new File(home, 'jdk')
+        // Two consecutive spaces on purpose: whitespace-splitting command execution collapses them
+        // and silently links somewhere else, so every test through here guards against that
+        this.activeJdk = new File(home, 'active  jdk')
         this.scriptDir = new File(home, 'scripts')
 
         jdksDir.mkdirs()
